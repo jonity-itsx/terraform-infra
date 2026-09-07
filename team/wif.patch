@@ -104,11 +104,11 @@ index 49a9b6c..cc2b4dc 100644
 --- a/bootstrap/terraform.tfvars
 +++ b/bootstrap/terraform.tfvars
 @@ -1,2 +1,3 @@
--project_id = "skymill-gcp-test"
--team_id    = 1
-+project_id  = "skymill-gcp-test"
-+team_id     = 1
-+github_repo = "dhskymill/team-test-new"
+-project_id = "itsx25-lab"
+-team_id    = 4
++project_id  = "itsx25-lab"
++team_id     = 4
++github_repo = "jonity-itsx/terraform-infra"
 diff --git a/bootstrap/variables.tf b/bootstrap/variables.tf
 index bd1b4b4..1a8a7fa 100644
 --- a/bootstrap/variables.tf
