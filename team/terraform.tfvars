@@ -4,11 +4,11 @@ team_id    = 4
 ssh_users = [
   {
     username   = "dehe"
-    public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAZdpRaDpbZmzyNofGuhvbsp18hfZv5khJVRWU8R2KwA"
+    public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILYqu1F6xW942A1Pn82NPeZQBsLEB2yqOK2bdbwkVzna"
   },
   {
     username   = "joes"
-    public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILYqu1F6xW942A1Pn82NPeZQBsLEB2yqOK2bdbwkVzna"
+    public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAZdpRaDpbZmzyNofGuhvbsp18hfZv5khJVRWU8R2KwA"
   },
   {
     username   = "wiky"
