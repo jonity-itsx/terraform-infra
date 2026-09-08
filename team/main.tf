@@ -174,7 +174,8 @@ resource "google_compute_firewall" "allow_traffic" {
   network = data.google_compute_network.team_vpc.name
 
   allow {
-    protocol = "all"
+    protocol = "tcp"
+    ports    = ["22"]
   }
 
   source_ranges = ["0.0.0.0/0"]
