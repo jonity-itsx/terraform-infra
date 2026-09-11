@@ -13,6 +13,9 @@ jobs:
   terraform:
     name: Terraform Plan & Apply
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: team
     steps:
       - name: Checkout
         uses: actions/checkout@v4

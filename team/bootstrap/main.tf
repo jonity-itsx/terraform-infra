@@ -79,6 +79,8 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   attribute_condition = "assertion.repository == '${var.github_repo}'"
 }
 
+# GitHub Actions authenticates via Workload Identity Federation.
+# Long-lived service account keys are intentionally not created.
 resource "google_service_account" "cicd" {
   account_id   = "team${var.team_id}-cicd"
   display_name = "CI/CD Pipeline Service Account"
@@ -94,9 +96,5 @@ resource "google_service_account_iam_member" "cicd_workload_identity" {
   service_account_id = google_service_account.cicd.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repo}"
-}
-
-resource "google_service_account_key" "cicd" {
-  service_account_id = google_service_account.cicd.name
 }
 
