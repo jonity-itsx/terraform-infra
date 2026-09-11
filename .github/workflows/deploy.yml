@@ -2,9 +2,7 @@ name: Deploy Infrastructure
 
 on:
   push:
-    branches:
-      - main
-      - 'cleanup/**'
+    branches: [main]
   workflow_dispatch:
 
 permissions:
