@@ -85,6 +85,9 @@ resource "google_compute_instance" "jumphost" {
 
   resource_policies = [google_compute_resource_policy.daily_schedule.id]
 
+  metadata = {
+  	enable-oslogin = "TRUE"
+   
   boot_disk {
     initialize_params {
       image = "${var.project_id}/debian"
@@ -195,9 +198,3 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
   member        = "user:${each.value}"
 }
 
-  # ... övrig konfiguration ...
-
-  metadata = {
-    enable-oslogin = "TRUE"
-  }
-}
