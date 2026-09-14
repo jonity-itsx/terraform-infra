@@ -64,7 +64,10 @@ jobs:
       - name: TFLint (team)
         run: tflint --format compact
 
+      # always(): annars hoppas steget över när team/ har fynd, och vi får
+      # aldrig se om bootstrap också har några.
       - name: TFLint (bootstrap)
+        if: always()
         run: tflint --format compact
         working-directory: team/bootstrap
 
