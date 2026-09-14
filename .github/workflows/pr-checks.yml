@@ -33,6 +33,41 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      # team/bootstrap/ är en egen root-modul med eget backend-block.
+      # terraform validate i team/ tittar inte in i den.
+      - name: Terraform Init (bootstrap)
+        run: terraform init -backend=false
+        working-directory: team/bootstrap
+
+      - name: Terraform Validate (bootstrap)
+        run: terraform validate
+        working-directory: team/bootstrap
+
+  tflint:
+    name: Lint
+    runs-on: ubuntu-latest
+    env:
+      TFLINT_CONFIG_FILE: ${{ github.workspace }}/.tflint.hcl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.64.0
+
+      # Hämtar google-pluginet en gång; det cachas sedan för båda körningarna.
+      - name: TFLint Init
+        run: tflint --init
+
+      - name: TFLint (team)
+        run: tflint --format compact
+
+      - name: TFLint (bootstrap)
+        run: tflint --format compact
+        working-directory: team/bootstrap
+
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
