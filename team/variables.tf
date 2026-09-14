@@ -41,14 +41,9 @@ variable "ssh_users" {
 }
 
 variable "os_admin_users" {
-  type        = list(string)
   description = "List of Google identities (email addresses) granted OS Admin Login access to computing instance"
-  default     = [
-    "dennis.heimbert@chasacademy.se"
-    "jonas.beijbom@chasacademy.se"
-    "jon.eskilsson@chasacademy.se" 
-    "liam.baltze@chasacademy.se"
-    "wilma.kylvag@chasacademy.se" 
-    "jon.jonsson@chasacademy.se"
-  ]
+  type = list(object({
+    username   = string
+    public_key = string
+  }))
 }
