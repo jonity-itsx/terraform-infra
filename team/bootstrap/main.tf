@@ -1,4 +1,8 @@
 terraform {
+  # ~> 1.15 betyder >= 1.15.0, < 2.0.0. Rymmer CI:s 1.15.7 och
+  # lokalt installerade 1.16.x. Inte ~> 1.15.0, som hade låst till 1.15.x.
+  required_version = "~> 1.15"
+
   required_providers {
     google = {
       source  = "hashicorp/google"
