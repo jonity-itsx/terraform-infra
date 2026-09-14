@@ -195,12 +195,6 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
   member        = "user:${each.value}"
 }
 
-# Aktivera OS Login på Jumphost-instansen
-resource "google_compute_instance" "jumphost" {
-  name         = "team-jumphost"
-  machine_type = "e2-micro"
-  zone         = "europe-north1-a"
-
   # ... övrig konfiguration ...
 
   metadata = {
