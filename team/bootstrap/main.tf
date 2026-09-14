@@ -20,8 +20,6 @@ provider "google" {
   project = var.project_id
 }
 
-data "google_project" "project" {}
-
 resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
