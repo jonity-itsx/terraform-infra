@@ -85,9 +85,6 @@ resource "google_compute_instance" "jumphost" {
 
   resource_policies = [google_compute_resource_policy.daily_schedule.id]
 
-  metadata = {
-  	enable-oslogin = "TRUE"
-   
   boot_disk {
     initialize_params {
       image = "${var.project_id}/debian"
@@ -109,6 +106,7 @@ resource "google_compute_instance" "jumphost" {
   }
 
   metadata = {
+    enable-oslogin = "TRUE"
     ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
     block-project-ssh-keys = true
     startup-script         = <<-EOT
