@@ -10,10 +10,10 @@ terraform {
     }
   }
 
-   backend "gcs" {
-     bucket = "team4-tfstate-fd20a3b0"
-     prefix = "terraform/bootstrap-state"
-   }
+  backend "gcs" {
+    bucket = "team4-tfstate-fd20a3b0"
+    prefix = "terraform/bootstrap-state"
+  }
 }
 
 provider "google" {
