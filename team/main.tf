@@ -186,3 +186,24 @@ resource "google_compute_firewall" "allow_traffic" {
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["jumphost", "primary"]
 }
+# Tilldela osAdminLogin till alla e-postadresser i variabeln
+resource "google_compute_instance_iam_member" "jumphost_os_login" {
+  for_each      = toset(var.os_admin_users)
+  instance_name = google_compute_instance.jumphost.name
+  zone          = google_compute_instance.jumphost.zone
+  role          = "roles/compute.osAdminLogin"
+  member        = "user:${each.value}"
+}
+
+# Aktivera OS Login på Jumphost-instansen
+resource "google_compute_instance" "jumphost" {
+  name         = "team-jumphost"
+  machine_type = "e2-micro"
+  zone         = "europe-north1-a"
+
+  # ... övrig konfiguration ...
+
+  metadata = {
+    enable-oslogin = "TRUE"
+  }
+}
