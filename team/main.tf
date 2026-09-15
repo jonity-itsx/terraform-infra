@@ -157,7 +157,7 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
 
  resource "google_compute_instance" "primary" {
    name         = "team${var.team_id}-primary"
-   machine_type = "e2-small"
+   machine_type = "e2-micro"
    zone         = var.region
 
    allow_stopping_for_update = true
