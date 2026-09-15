@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  # Actions låg tre, ett respektive två majorversioner efter innan de
+  # uppgraderades för hand. Dependabot öppnar en PR per uppgradering i
+  # stället, så de kan granskas en i taget när de kommer.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+
+  # Providerversioner är låsta med ~> 7.0 respektive ~> 3.0. Dependabot
+  # föreslår höjningar av de gränserna och uppdaterar .terraform.lock.hcl.
+  - package-ecosystem: "terraform"
+    directory: "/team"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "terraform"
+    directory: "/team/bootstrap"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
