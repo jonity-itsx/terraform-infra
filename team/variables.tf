@@ -47,14 +47,6 @@ variable "extra_ssh_cidrs" {
   default     = ["35.235.240.0/20"]
 }
 
-variable "ssh_users" {
-  description = "List of SSH users and their public keys for instance access"
-  type = list(object({
-    username   = string
-    public_key = string
-  }))
-}
-
 variable "os_admin_users" {
   type        = list(string)
   description = "List of Google identities (email addresses) granted OS Admin Login access to computing instance"
