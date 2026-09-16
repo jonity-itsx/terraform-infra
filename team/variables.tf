@@ -16,7 +16,7 @@ variable "jumphost_zone" {
 }
 
 variable "primary_zone" {
-  description = "Override zone for the primary instance. Defaults to the second zone in the region."
+  description = "Override zone for the primary instance. Defaults to the jumphost's zone."
   type        = string
   default     = null
 }
@@ -24,12 +24,6 @@ variable "primary_zone" {
 variable "team_id" {
   description = "The team ID"
   type        = number
-}
-
-variable "instructor_cidr" {
-  description = "The CIDR range for the instructor's network"
-  type        = string
-  default     = "10.0.0.0/24"
 }
 
 variable "ssh_users" {
