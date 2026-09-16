@@ -122,8 +122,8 @@ resource "google_compute_instance" "jumphost" {
 
   metadata = {
     enable-oslogin         = "TRUE"
-    ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
-    block-project-ssh-keys = true
+    # ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
+    # block-project-ssh-keys = true
     startup-script         = <<-EOT
       #!/bin/bash
       set -e
@@ -185,6 +185,14 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
   member        = "user:${each.value}"
 }
 
+resource "google_compute_instance_iam_member" "primary_os_login" {
+  for_each      = toset(var.os_admin_users)
+  instance_name = google_compute_instance.primary.name
+  zone          = google_compute_instance.primary.zone
+  role          = "roles/compute.osAdminLogin"
+  member        = "user:${each.value}"
+}
+
 # OBS: IAP-tunnelåtkomst hanteras INTE här, trots att den hör hemma i koden.
 # roles/iap.tunnelResourceAccessor kräver iap.tunnelInstances.setIamPolicy för
 # att sättas, och CI-kontets roles/editor saknar den. Egen minimal roll gick
@@ -221,8 +229,9 @@ resource "google_compute_instance" "primary" {
   }
 
   metadata = {
-    ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
-    block-project-ssh-keys = true
+    # ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
+    # block-project-ssh-keys = true
+    enable-oslogin = "TRUE"
     startup-script         = <<-EOT
        #!/bin/bash
        set -e
