@@ -21,6 +21,10 @@ locals {
   jumphost_zone = coalesce(var.jumphost_zone, data.google_compute_zones.available.names[local.team_zone])
   primary_zone  = coalesce(var.primary_zone, local.jumphost_zone)
   subnet_cidr   = "10.0.${var.team_id}.0/24"
+
+  # concat, inte en platt lista, så att instruktörsnätet alltid finns med.
+  # Punkt 6 kräver det, och med en enda lista går det att råka redigera bort.
+  ssh_source_ranges = concat([var.instructor_cidr], var.extra_ssh_cidrs)
 }
 
 data "google_compute_zones" "available" {
@@ -134,18 +138,36 @@ resource "google_compute_instance" "jumphost" {
   }
 }
 
+# SSH. Namnet behålls trots att regeln nu bara hanterar port 22 — ett byte
+# hade bytt resursadress och GCP-namn, alltså destroy och recreate, med risk
+# att tappa SSH mitt i en apply.
 resource "google_compute_firewall" "allow_traffic" {
   name    = "team${var.team_id}-allow-traffic"
   network = data.google_compute_network.team_vpc.name
 
   allow {
     protocol = "tcp"
-    ports    = ["8080", "22"]
+    ports    = ["22"]
   }
 
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = local.ssh_source_ranges
   target_tags   = ["jumphost", "primary"]
 }
+
+# Headscale nås bara av instruktörens reverse proxy, inte av hela internet.
+resource "google_compute_firewall" "allow_headscale_proxy" {
+  name    = "team${var.team_id}-allow-headscale-proxy"
+  network = data.google_compute_network.team_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8080"]
+  }
+
+  source_ranges = [var.instructor_proxy_cidr]
+  target_tags   = ["jumphost"]
+}
+
 # Tilldela osAdminLogin till alla e-postadresser i variabeln
 resource "google_compute_instance_iam_member" "jumphost_os_login" {
   for_each      = toset(var.os_admin_users)

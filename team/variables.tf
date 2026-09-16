@@ -26,6 +26,27 @@ variable "team_id" {
   type        = number
 }
 
+# Punkt 6 i workshopen: instruktören måste nå jumphosten på 22 från sitt nät,
+# och Headscale på 8080 från reverse proxyn. Båda är krav så fort vi stramar
+# åt något. De ligger som variabler för att vara lätta att hitta och ändra.
+variable "instructor_cidr" {
+  description = "The instructor's network. Required to keep SSH access to the jumphost (punkt 6)."
+  type        = string
+  default     = "10.0.0.0/24"
+}
+
+variable "instructor_proxy_cidr" {
+  description = "The instructor's reverse proxy node. Required to keep Headscale reachable on 8080 (punkt 6)."
+  type        = string
+  default     = "10.0.0.2/32"
+}
+
+variable "extra_ssh_cidrs" {
+  description = "Additional SSH sources beyond the instructor network. Defaults to the GCP IAP TCP forwarding range."
+  type        = list(string)
+  default     = ["35.235.240.0/20"]
+}
+
 variable "ssh_users" {
   description = "List of SSH users and their public keys for instance access"
   type = list(object({
