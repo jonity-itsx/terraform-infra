@@ -155,6 +155,17 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
   member        = "user:${each.value}"
 }
 
+# Tunnelåtkomst via IAP, bunden till jumphosten och inte till projektet.
+# En bindning på projektnivå hade gett tunnel till varje instans i itsx25-lab.
+# Samma lista som OS Login ovan, så att båda rättigheterna följs åt.
+resource "google_iap_tunnel_instance_iam_member" "jumphost_iap" {
+  for_each = toset(var.os_admin_users)
+  instance = google_compute_instance.jumphost.name
+  zone     = google_compute_instance.jumphost.zone
+  role     = "roles/iap.tunnelResourceAccessor"
+  member   = "user:${each.value}"
+}
+
 resource "google_compute_instance" "primary" {
   name         = "team${var.team_id}-primary"
   machine_type = "e2-micro"
