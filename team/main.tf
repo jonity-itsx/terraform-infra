@@ -155,16 +155,17 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
   member        = "user:${each.value}"
 }
 
-# Tunnelåtkomst via IAP, bunden till jumphosten och inte till projektet.
-# En bindning på projektnivå hade gett tunnel till varje instans i itsx25-lab.
-# Samma lista som OS Login ovan, så att båda rättigheterna följs åt.
-resource "google_iap_tunnel_instance_iam_member" "jumphost_iap" {
-  for_each = toset(var.os_admin_users)
-  instance = google_compute_instance.jumphost.name
-  zone     = google_compute_instance.jumphost.zone
-  role     = "roles/iap.tunnelResourceAccessor"
-  member   = "user:${each.value}"
-}
+# OBS: IAP-tunnelåtkomst hanteras INTE här, trots att den hör hemma i koden.
+# roles/iap.tunnelResourceAccessor kräver iap.tunnelInstances.setIamPolicy för
+# att sättas, och CI-kontets roles/editor saknar den. Egen minimal roll gick
+# inte heller — vi saknar iam.roles.create i itsx25-lab.
+#
+# Tills vidare ligger bindningen på projektnivå, satt för hand med gcloud, på
+# samma sätt som ett annat team redan gjort. Det ger tunnelåtkomst till varje
+# instans i projektet, vilket är bredare än vi vill ha det.
+#
+# TODO: flytta tillbaka hit när CI kan sätta IAP-IAM, eller ersätt med
+# tailnet-åtkomst via Headscale-ACL:er enligt punkt 8.
 
 resource "google_compute_instance" "primary" {
   name         = "team${var.team_id}-primary"
