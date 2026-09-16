@@ -121,28 +121,26 @@ resource "google_compute_instance" "jumphost" {
   }
 
   metadata = {
-    enable-oslogin         = "TRUE"
-    ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
-    block-project-ssh-keys = true
-    startup-script         = <<-EOT
-      #!/bin/bash
-      set -e
+    enable-oslogin = "TRUE"
+    startup-script = <<-EOT
+  #!/bin/bash
+  set -e
 
-      if ! swapon --show | grep -q "/swapfile"; then
-        fallocate -l 1G /swapfile
-        chmod 600 /swapfile
-        mkswap /swapfile
-        swapon /swapfile
-        echo '/swapfile none swap sw 0 0' >> /etc/fstab
-      fi
+  if ! swapon --show | grep -q "/swapfile"; then
+    fallocate -l 1G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
 
-      echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
-      echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ip-forward.conf
-      sysctl --system
+  echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
+  echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ip-forward.conf
+  sysctl --system
 
-      DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
-      iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
-    EOT
+  DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
+  iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
+  EOT
   }
 }
 
@@ -185,6 +183,14 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
   member        = "user:${each.value}"
 }
 
+resource "google_compute_instance_iam_member" "primary_os_login" {
+  for_each      = toset(var.os_admin_users)
+  instance_name = google_compute_instance.primary.name
+  zone          = google_compute_instance.primary.zone
+  role          = "roles/compute.osAdminLogin"
+  member        = "user:${each.value}"
+}
+
 # OBS: IAP-tunnelåtkomst hanteras INTE här, trots att den hör hemma i koden.
 # roles/iap.tunnelResourceAccessor kräver iap.tunnelInstances.setIamPolicy för
 # att sättas, och CI-kontets roles/editor saknar den. Egen minimal roll gick
@@ -221,22 +227,21 @@ resource "google_compute_instance" "primary" {
   }
 
   metadata = {
-    ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
-    block-project-ssh-keys = true
-    startup-script         = <<-EOT
-       #!/bin/bash
-       set -e
+    enable-oslogin = "TRUE"
+    startup-script = <<-EOT
+  #!/bin/bash
+  set -e
 
-       if ! swapon --show | grep -q "/swapfile"; then
-         fallocate -l 1G /swapfile
-         chmod 600 /swapfile
-         mkswap /swapfile
-         swapon /swapfile
-         echo '/swapfile none swap sw 0 0' >> /etc/fstab
-       fi
+  if ! swapon --show | grep -q "/swapfile"; then
+    fallocate -l 1G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
 
-       echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
-       sysctl --system
-     EOT
+  echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
+  sysctl --system
+  EOT
   }
 }
