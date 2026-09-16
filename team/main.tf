@@ -122,8 +122,6 @@ resource "google_compute_instance" "jumphost" {
 
   metadata = {
     enable-oslogin         = "TRUE"
-    # ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
-    # block-project-ssh-keys = true
     startup-script         = <<-EOT
       #!/bin/bash
       set -e
@@ -229,8 +227,6 @@ resource "google_compute_instance" "primary" {
   }
 
   metadata = {
-    # ssh-keys               = join("\n", [for user in var.ssh_users : "${user.username}:${user.public_key}"])
-    # block-project-ssh-keys = true
     enable-oslogin = "TRUE"
     startup-script         = <<-EOT
        #!/bin/bash
