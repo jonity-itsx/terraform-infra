@@ -121,8 +121,8 @@ resource "google_compute_instance" "jumphost" {
   }
 
   metadata = {
-    enable-oslogin         = "TRUE"
-    startup-script         = <<-EOT
+    enable-oslogin = "TRUE"
+    startup-script = <<-EOT
   #!/bin/bash
   set -e
 
@@ -228,7 +228,7 @@ resource "google_compute_instance" "primary" {
 
   metadata = {
     enable-oslogin = "TRUE"
-    startup-script         = <<-EOT
+    startup-script = <<-EOT
   #!/bin/bash
   set -e
 
