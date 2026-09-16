@@ -160,6 +160,22 @@ resource "google_compute_firewall" "allow_traffic" {
   target_tags   = ["jumphost", "primary"]
 }
 
+# Firewall rule to allow our 5 IP addresses to access servers hosted by primary on port 8000
+# Subnet routing will have to be off for this to work as the jumphost is not included 
+resource "google_compute_firewall" "allow_primary_http" {
+  name    = "team4-allow-primary-http"
+  network = data.google_compute_network.team_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8000"]
+  }
+
+  source_ranges = var.team_tailnet_cidrs
+
+  target_tags = ["primary"]
+}
+
 # Headscale nås bara av instruktörens reverse proxy, inte av hela internet.
 resource "google_compute_firewall" "allow_headscale_proxy" {
   name    = "team${var.team_id}-allow-headscale-proxy"
