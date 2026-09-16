@@ -22,9 +22,17 @@ locals {
   primary_zone  = coalesce(var.primary_zone, local.jumphost_zone)
   subnet_cidr   = "10.0.${var.team_id}.0/24"
 
-  # concat, inte en platt lista, så att instruktörsnätet alltid finns med.
-  # Punkt 6 kräver det, och med en enda lista går det att råka redigera bort.
-  ssh_source_ranges = concat([var.instructor_cidr], var.extra_ssh_cidrs)
+  # concat, inte en platt lista, så att instruktörsnätet och vårt eget subnät
+  # alltid finns med. Punkt 6 kräver det första, routingen det andra, och med
+  # en enda lista går båda att råka redigera bort.
+  #
+  # subnet_cidr behövs för att jumphosten (10.0.x.2) ska nå primary (10.0.x.3).
+  # Tailscale SNAT:ar dessutom subnet-routad trafik till jumphostens adress,
+  # så tailnet-klienter landar på samma källa och täcks av samma post.
+  ssh_source_ranges = concat(
+    [var.instructor_cidr, local.subnet_cidr],
+    var.extra_ssh_cidrs,
+  )
 }
 
 data "google_compute_zones" "available" {
