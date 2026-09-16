@@ -47,6 +47,19 @@ variable "extra_ssh_cidrs" {
   default     = ["35.235.240.0/20"]
 }
 
+variable "team_tailnet_cidrs" {
+  description = "Tailnet IP addresses allowed to access Team 4 services"
+  type        = list(string)
+
+  default = [
+    "100.64.0.2/32", # Jonas
+    "100.64.0.3/32", # Jone
+    "100.64.0.4/32", # Jon
+    "100.64.0.6/32", # Wilma
+    "100.64.0.7/32", # Liam
+  ]
+}
+
 variable "os_admin_users" {
   type        = list(string)
   description = "List of Google identities (email addresses) granted OS Admin Login access to computing instance"
