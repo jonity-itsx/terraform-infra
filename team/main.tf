@@ -17,10 +17,10 @@ provider "google" {
 }
 
 locals {
-  instructor_vpc_self_link = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/global/networks/instructor-vpc"
-  team_zone                = (var.team_id - 1) % 3
-  jumphost_zone            = coalesce(var.jumphost_zone, data.google_compute_zones.available.names[local.team_zone])
-  subnet_cidr              = "10.0.${var.team_id}.0/24"
+  team_zone     = (var.team_id - 1) % 3
+  jumphost_zone = coalesce(var.jumphost_zone, data.google_compute_zones.available.names[local.team_zone])
+  primary_zone  = coalesce(var.primary_zone, local.jumphost_zone)
+  subnet_cidr   = "10.0.${var.team_id}.0/24"
 }
 
 data "google_compute_zones" "available" {
@@ -158,7 +158,7 @@ resource "google_compute_instance_iam_member" "jumphost_os_login" {
 resource "google_compute_instance" "primary" {
   name         = "team${var.team_id}-primary"
   machine_type = "e2-micro"
-  zone         = local.jumphost_zone
+  zone         = local.primary_zone
 
   allow_stopping_for_update = true
 
