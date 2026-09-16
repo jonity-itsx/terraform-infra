@@ -123,24 +123,24 @@ resource "google_compute_instance" "jumphost" {
   metadata = {
     enable-oslogin         = "TRUE"
     startup-script         = <<-EOT
-      #!/bin/bash
-      set -e
+  #!/bin/bash
+  set -e
 
-      if ! swapon --show | grep -q "/swapfile"; then
-        fallocate -l 1G /swapfile
-        chmod 600 /swapfile
-        mkswap /swapfile
-        swapon /swapfile
-        echo '/swapfile none swap sw 0 0' >> /etc/fstab
-      fi
+  if ! swapon --show | grep -q "/swapfile"; then
+    fallocate -l 1G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
 
-      echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
-      echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ip-forward.conf
-      sysctl --system
+  echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
+  echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ip-forward.conf
+  sysctl --system
 
-      DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
-      iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
-    EOT
+  DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
+  iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
+  EOT
   }
 }
 
@@ -229,19 +229,19 @@ resource "google_compute_instance" "primary" {
   metadata = {
     enable-oslogin = "TRUE"
     startup-script         = <<-EOT
-       #!/bin/bash
-       set -e
+  #!/bin/bash
+  set -e
 
-       if ! swapon --show | grep -q "/swapfile"; then
-         fallocate -l 1G /swapfile
-         chmod 600 /swapfile
-         mkswap /swapfile
-         swapon /swapfile
-         echo '/swapfile none swap sw 0 0' >> /etc/fstab
-       fi
+  if ! swapon --show | grep -q "/swapfile"; then
+    fallocate -l 1G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
 
-       echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
-       sysctl --system
-     EOT
+  echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
+  sysctl --system
+  EOT
   }
 }
