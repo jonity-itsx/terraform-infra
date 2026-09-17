@@ -54,7 +54,7 @@ variable "team_tailnet_cidrs" {
   default = [
     "100.64.0.2/32", # Jonas
     "100.64.0.3/32", # Jone
-    "100.64.0.4/32", # Jon
+    "100.64.0.5/32", # Jon
     "100.64.0.6/32", # Wilma
     "100.64.0.7/32", # Liam
   ]
