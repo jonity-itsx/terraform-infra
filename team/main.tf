@@ -175,7 +175,18 @@ resource "google_compute_firewall" "allow_primary_http" {
 
   target_tags = ["primary"]
 }
+# Ger "primary" tillgång till internet via jumphost.
+resource "google_compute_firewall" "allow_internal_to_jumphost" {
+  name    = "team${var.team_id}-allow-internal-to-jumphost"
+  network = data.google_compute_network.team_vpc.name
 
+  allow {
+    protocol = "all"
+  }
+
+  source_ranges = ["10.0.4.0/24"] 
+  target_tags   = ["jumphost"]
+}
 # Headscale nås bara av instruktörens reverse proxy, inte av hela internet.
 resource "google_compute_firewall" "allow_headscale_proxy" {
   name    = "team${var.team_id}-allow-headscale-proxy"
@@ -221,7 +232,7 @@ resource "google_compute_instance_iam_member" "primary_os_login" {
 
 resource "google_compute_instance" "primary" {
   name         = "team${var.team_id}-primary"
-  machine_type = "e2-micro"
+  machine_type = "e2-small"
   zone         = local.primary_zone
 
   allow_stopping_for_update = true
