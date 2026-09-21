@@ -184,7 +184,7 @@ resource "google_compute_firewall" "allow_internal_to_jumphost" {
     protocol = "all"
   }
 
-  source_ranges = ["10.0.4.0/24"] 
+  source_ranges = ["10.0.4.0/24"]
   target_tags   = ["jumphost"]
 }
 # Headscale nås bara av instruktörens reverse proxy, inte av hela internet.
