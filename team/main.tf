@@ -29,6 +29,7 @@ locals {
   # subnet_cidr behövs för att jumphosten (10.0.x.2) ska nå primary (10.0.x.3).
   # Tailscale SNAT:ar dessutom subnet-routad trafik till jumphostens adress,
   # så tailnet-klienter landar på samma källa och täcks av samma post.
+  # Det gäller även GitHub Actions-runnern, se docs/beslut/002-snat-pa-och-ci-atkomst.md.
   ssh_source_ranges = concat(
     [var.instructor_cidr, local.subnet_cidr],
     var.extra_ssh_cidrs,
@@ -160,18 +161,50 @@ resource "google_compute_firewall" "allow_traffic" {
   target_tags   = ["jumphost", "primary"]
 }
 
-# Firewall rule to allow our 5 IP addresses to access servers hosted by primary on port 8000
-# Subnet routing will have to be off for this to work as the jumphost is not included 
+# Webbtrafik till primary.
+#
+# 8000 är webbservern i punkt 3 (python3 -m http.server). 80 är company-website
+# i k3s, som publiceras med hostPort 80 i k8s/deployment.yaml — utan den porten
+# går deployen igenom men sajten går inte att nå.
+#
+# subnet_cidr är det som faktiskt släpper in oss. Tailscale SNAT:ar subnet-routad
+# trafik till jumphostens 10.0.x.2, så tailnet-klienter kommer hit med den
+# adressen som källa och aldrig med sin egen 100.64.0.x. team_tailnet_cidrs står
+# kvar för den dag SNAT slås av, men har ingen effekt så länge det är påslaget.
+# Bakgrunden ligger i docs/beslut/002-snat-pa-och-ci-atkomst.md.
 resource "google_compute_firewall" "allow_primary_http" {
-  name    = "team4-allow-primary-http"
+  name    = "team${var.team_id}-allow-primary-http"
   network = data.google_compute_network.team_vpc.name
 
   allow {
     protocol = "tcp"
-    ports    = ["8000"]
+    ports    = ["80", "8000"]
   }
 
-  source_ranges = var.team_tailnet_cidrs
+  source_ranges = concat(var.team_tailnet_cidrs, [local.subnet_cidr])
+
+  target_tags = ["primary"]
+}
+
+# k3s-API:t på primary, så att GitHub Actions kan kubectl:a hem deployen.
+#
+# Runnern går in i tailnetet, tar subnet-routen 10.0.x.0/24 via jumphosten och
+# blir SNAT:ad till 10.0.x.2 på vägen. Det är därför källan är subnet_cidr och
+# inte runnerns tailnet-adress — den är efemär och syns aldrig här.
+#
+# Räckvidden blir alltså alla i tailnetet som accepterar rutter, inte bara CI.
+# Åtkomst till porten ger ingen behörighet i klustret: det kräver token från
+# github-deployer-kontot i k8s/github-permissions.yaml.
+resource "google_compute_firewall" "allow_primary_k3s_api" {
+  name    = "team${var.team_id}-allow-primary-k3s-api"
+  network = data.google_compute_network.team_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["6443"]
+  }
+
+  source_ranges = [local.subnet_cidr]
 
   target_tags = ["primary"]
 }
@@ -184,7 +217,7 @@ resource "google_compute_firewall" "allow_internal_to_jumphost" {
     protocol = "all"
   }
 
-  source_ranges = ["10.0.4.0/24"]
+  source_ranges = [local.subnet_cidr]
   target_tags   = ["jumphost"]
 }
 # Headscale nås bara av instruktörens reverse proxy, inte av hela internet.
