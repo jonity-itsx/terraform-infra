@@ -142,6 +142,51 @@ resource "google_compute_instance" "jumphost" {
   DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
   iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
 
+  if [ -n "${var.discord_channel_id}" ]; then
+    if ! command -v auditd >/dev/null 2>&1; then
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y auditd
+    fi
+
+    cat > /etc/audit/rules.d/team-log-bot.rules <<'AUDIT_RULES'
+  -w /etc/ssh -p wa -k team_config
+  -w /etc/sudoers -p wa -k team_config
+  -w /etc/sudoers.d -p wa -k team_config
+  -w /etc/systemd/system -p wa -k team_config
+  -w /usr/local/bin -p wa -k team_config
+  -w /usr/local/sbin -p wa -k team_config
+  AUDIT_RULES
+    augenrules --load
+    systemctl enable --now auditd
+
+    install -m 0755 "${path.module}/scripts/discord-log-bot.py" /usr/local/sbin/team-discord-log-bot
+    cat > /etc/default/team-discord-log-bot <<'BOT_ENV'
+  DISCORD_CHANNEL_ID=${var.discord_channel_id}
+  DISCORD_SECRET_RESOURCE=projects/${var.project_id}/secrets/team${var.team_id}-log-bot-token/versions/latest
+  BOT_ENV
+    chmod 600 /etc/default/team-discord-log-bot
+
+    cat > /etc/systemd/system/team-discord-log-bot.service <<'BOT_UNIT'
+  [Unit]
+  Description=Forward jumphost SSH and configuration audit events to Discord
+  After=network-online.target auditd.service
+  Wants=network-online.target
+
+  [Service]
+  Type=simple
+  EnvironmentFile=/etc/default/team-discord-log-bot
+  ExecStart=/usr/local/sbin/team-discord-log-bot
+  Restart=always
+  RestartSec=5
+  User=root
+
+  [Install]
+  WantedBy=multi-user.target
+  BOT_UNIT
+    systemctl daemon-reload
+    systemctl enable --now team-discord-log-bot.service
+  fi
+
   ${file("${path.module}/scripts/login-motd.sh")}
   EOT
   }
