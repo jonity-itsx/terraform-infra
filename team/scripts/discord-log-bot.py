@@ -45,7 +45,7 @@ def metadata_token():
         return json.loads(response.read())["access_token"]
 
 
-def bot_token():
+def webhook_url():
     global BOT_TOKEN_CACHE, BOT_TOKEN_CACHE_UNTIL
     if BOT_TOKEN_CACHE and time.monotonic() < BOT_TOKEN_CACHE_UNTIL:
         return BOT_TOKEN_CACHE
@@ -57,6 +57,11 @@ def bot_token():
         {"Authorization": f"Bearer {access_token}"},
     )
     BOT_TOKEN_CACHE = base64.b64decode(secret["payload"]["data"]).decode().strip()
+    parsed = urllib.parse.urlsplit(BOT_TOKEN_CACHE)
+    if parsed.scheme != "https" or parsed.netloc != "discord.com" or not re.fullmatch(
+        r"/api/webhooks/\d+/[^/]+", parsed.path
+    ):
+        raise ValueError("Secret Manager value is not a Discord webhook URL")
     BOT_TOKEN_CACHE_UNTIL = time.monotonic() + 300
     return BOT_TOKEN_CACHE
 
@@ -64,10 +69,9 @@ def bot_token():
 def post_to_discord(content):
     for attempt in range(4):
         try:
-            token = bot_token()
             http_json(
-                f"https://discord.com/api/v10/channels/{CHANNEL_ID}/messages",
-                {"Authorization": f"Bot {token}", "Content-Type": "application/json"},
+                webhook_url() + "?wait=true",
+                {"Content-Type": "application/json"},
                 {"content": content[:1900], "allowed_mentions": {"parse": []}},
             )
             return
@@ -84,7 +88,10 @@ def post_to_discord(content):
             logging.warning("Discord request failed (HTTP %s), retry %s", error.code, attempt + 1)
             time.sleep(retry_after if error.code == 429 else min(2**attempt, 15))
         except Exception as error:
-            logging.warning("Could not deliver audit notification (%s), retry %s", error, attempt + 1)
+            logging.warning(
+                "Could not deliver audit notification (%s), retry %s",
+                type(error).__name__, attempt + 1,
+            )
             time.sleep(min(2**attempt, 15))
     logging.error("Dropping audit notification after retries")
 
@@ -182,6 +189,9 @@ def audit_reader():
 
 
 def main():
+    webhook = http_json(webhook_url(), {})
+    if str(webhook.get("channel_id")) != CHANNEL_ID:
+        raise RuntimeError("Discord webhook channel does not match DISCORD_CHANNEL_ID")
     threading.Thread(target=ssh_reader, daemon=True).start()
     threading.Thread(target=audit_reader, daemon=True).start()
     while True:

@@ -162,7 +162,7 @@ resource "google_compute_instance" "jumphost" {
     install -m 0755 "${path.module}/scripts/discord-log-bot.py" /usr/local/sbin/team-discord-log-bot
     cat > /etc/default/team-discord-log-bot <<'BOT_ENV'
   DISCORD_CHANNEL_ID=${var.discord_channel_id}
-  DISCORD_SECRET_RESOURCE=projects/${var.project_id}/secrets/team${var.team_id}-log-bot-token/versions/latest
+  DISCORD_SECRET_RESOURCE=projects/${var.project_id}/secrets/team${var.team_id}-discord-webhook-url/versions/latest
   BOT_ENV
     chmod 600 /etc/default/team-discord-log-bot
 
