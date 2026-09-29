@@ -303,6 +303,10 @@ resource "google_compute_instance" "primary" {
   fi
 
   echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
+  # k3s behöver forwarding för trafik in till poddarna. GCE-imagens
+  # 60-gce-network-security.conf sätter ip_forward=0, och sysctl --system
+  # läser in den igen, så utan 99-filen tappar ingressen trafiken.
+  echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ip-forward.conf
   sysctl --system
 
   ${file("${path.module}/scripts/login-motd.sh")}
