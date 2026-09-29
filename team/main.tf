@@ -141,6 +141,8 @@ resource "google_compute_instance" "jumphost" {
 
   DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
   iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
+
+  ${file("${path.module}/scripts/login-motd.sh")}
   EOT
   }
 }
@@ -302,6 +304,8 @@ resource "google_compute_instance" "primary" {
 
   echo 'vm.swappiness=20' > /etc/sysctl.d/01-swappiness.conf
   sysctl --system
+
+  ${file("${path.module}/scripts/login-motd.sh")}
   EOT
   }
 }
