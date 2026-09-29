@@ -162,19 +162,20 @@ resource "google_compute_instance" "jumphost" {
     install -m 0755 "${path.module}/scripts/discord-log-bot.py" /usr/local/sbin/team-discord-log-bot
     cat > /etc/default/team-discord-log-bot <<'BOT_ENV'
   DISCORD_CHANNEL_ID=${var.discord_channel_id}
-  DISCORD_SECRET_RESOURCE=projects/${var.project_id}/secrets/team${var.team_id}-discord-webhook-url/versions/latest
   BOT_ENV
     chmod 600 /etc/default/team-discord-log-bot
 
     cat > /etc/systemd/system/team-discord-log-bot.service <<'BOT_UNIT'
   [Unit]
   Description=Forward jumphost SSH and configuration audit events to Discord
+    ConditionPathExists=/etc/team-discord-webhook.env
   After=network-online.target auditd.service
   Wants=network-online.target
 
   [Service]
   Type=simple
   EnvironmentFile=/etc/default/team-discord-log-bot
+  EnvironmentFile=/etc/team-discord-webhook.env
   ExecStart=/usr/local/sbin/team-discord-log-bot
   Restart=always
   RestartSec=5

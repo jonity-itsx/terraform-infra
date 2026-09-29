@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import base64
 import json
 import logging
 import os
@@ -17,9 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 EVENTS = queue.Queue()
 HOST = os.uname().nodename
 CHANNEL_ID = os.environ["DISCORD_CHANNEL_ID"]
-SECRET_RESOURCE = os.environ["DISCORD_SECRET_RESOURCE"]
-BOT_TOKEN_CACHE = None
-BOT_TOKEN_CACHE_UNTIL = 0
+WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
 
 SSH_RE = re.compile(
     r"^(?P<result>Accepted|Failed) (?P<method>\S+) for "
@@ -36,34 +33,13 @@ def http_json(url, headers, body=None):
         return json.loads(response.read())
 
 
-def metadata_token():
-    request = urllib.request.Request(
-        "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-        headers={"Metadata-Flavor": "Google"},
-    )
-    with urllib.request.urlopen(request, timeout=5) as response:
-        return json.loads(response.read())["access_token"]
-
-
 def webhook_url():
-    global BOT_TOKEN_CACHE, BOT_TOKEN_CACHE_UNTIL
-    if BOT_TOKEN_CACHE and time.monotonic() < BOT_TOKEN_CACHE_UNTIL:
-        return BOT_TOKEN_CACHE
-
-    access_token = metadata_token()
-    resource = urllib.parse.quote(SECRET_RESOURCE, safe="/")
-    secret = http_json(
-        f"https://secretmanager.googleapis.com/v1/{resource}:access",
-        {"Authorization": f"Bearer {access_token}"},
-    )
-    BOT_TOKEN_CACHE = base64.b64decode(secret["payload"]["data"]).decode().strip()
-    parsed = urllib.parse.urlsplit(BOT_TOKEN_CACHE)
+    parsed = urllib.parse.urlsplit(WEBHOOK_URL)
     if parsed.scheme != "https" or parsed.netloc != "discord.com" or not re.fullmatch(
         r"/api/webhooks/\d+/[^/]+", parsed.path
     ):
-        raise ValueError("Secret Manager value is not a Discord webhook URL")
-    BOT_TOKEN_CACHE_UNTIL = time.monotonic() + 300
-    return BOT_TOKEN_CACHE
+        raise ValueError("DISCORD_WEBHOOK_URL is not a Discord webhook URL")
+    return WEBHOOK_URL
 
 
 def post_to_discord(content):
