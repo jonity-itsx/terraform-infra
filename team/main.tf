@@ -159,7 +159,8 @@ resource "google_compute_instance" "jumphost" {
     augenrules --load
     systemctl enable --now auditd
 
-    install -m 0755 "${path.module}/scripts/discord-log-bot.py" /usr/local/sbin/team-discord-log-bot
+    printf '%s' '${base64encode(file("${path.module}/scripts/discord-log-bot.py"))}' | base64 --decode > /usr/local/sbin/team-discord-log-bot
+    chmod 755 /usr/local/sbin/team-discord-log-bot
     cat > /etc/default/team-discord-log-bot <<'BOT_ENV'
   DISCORD_CHANNEL_ID=${var.discord_channel_id}
   BOT_ENV

@@ -28,7 +28,11 @@ AUDIT_FIELD_RE = re.compile(r'(\w+)=((?:"(?:\\.|[^"])*")|[^\s]+)')
 
 def http_json(url, headers, body=None):
     data = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(url, data=data, headers=headers)
+    request_headers = {
+        "User-Agent": "Team4-Jumphost-Log-Forwarder/1.0",
+        **headers,
+    }
+    request = urllib.request.Request(url, data=data, headers=request_headers)
     with urllib.request.urlopen(request, timeout=10) as response:
         return json.loads(response.read())
 
