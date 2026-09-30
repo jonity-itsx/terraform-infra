@@ -142,6 +142,100 @@ resource "google_compute_instance" "jumphost" {
   DEFAULT_IF=$(ip ro sh default | awk '/default/ {print $5}')
   iptables -t nat -A POSTROUTING -o "$DEFAULT_IF" -s "${local.subnet_cidr}" -j MASQUERADE
 
+  if [ -n "${var.discord_channel_id}" ]; then
+    systemctl disable --now team-discord-log-bot.service 2>/dev/null || true
+
+    install -d -m 0755 /etc/systemd/journald.conf.d
+    cat > /etc/systemd/journald.conf.d/team-discord-log-bot.conf <<'JOURNAL_CONFIG'
+  [Journal]
+  Storage=persistent
+  SystemMaxUse=100M
+  MaxRetentionSec=14day
+  JOURNAL_CONFIG
+    install -d -m 2755 /var/log/journal
+    systemd-tmpfiles --create --prefix /var/log/journal
+    systemctl restart systemd-journald
+
+    AUDITD_READY=true
+    if ! command -v auditd >/dev/null 2>&1; then
+      if ! apt-get update || ! DEBIAN_FRONTEND=noninteractive apt-get install -y auditd; then
+        echo 'Discord logging skipped: auditd installation failed' >&2
+        AUDITD_READY=false
+      fi
+    fi
+
+    if [ "$AUDITD_READY" = true ]; then
+      cat > /etc/audit/rules.d/team-log-bot.rules <<'AUDIT_RULES'
+  -w /etc/ssh -p wa -k team_config
+  -w /etc/sudoers -p wa -k team_config
+  -w /etc/sudoers.d -p wa -k team_config
+  -w /etc/systemd/system -p wa -k team_config
+  -w /usr/local/bin -p wa -k team_config
+  -w /usr/local/sbin -p wa -k team_config
+  AUDIT_RULES
+      if [ -f /etc/audit/plugins.d/syslog.conf ]; then
+        sed -i -E 's/^[[:space:]]*active[[:space:]]*=[[:space:]]*no/active = yes/' /etc/audit/plugins.d/syslog.conf
+      fi
+      augenrules --load
+      systemctl enable --now auditd
+      if ! systemctl restart auditd; then
+        echo 'Discord logging warning: auditd could not be restarted to apply its syslog plugin' >&2
+      fi
+
+      printf '%s' '${base64encode(file("${path.module}/scripts/discord-log-bot.py"))}' | base64 --decode > /usr/local/sbin/team-discord-log-bot
+      chmod 755 /usr/local/sbin/team-discord-log-bot
+      cat > /etc/default/team-discord-log-bot <<'BOT_ENV'
+  DISCORD_CHANNEL_ID=${var.discord_channel_id}
+  BOT_ENV
+      chmod 600 /etc/default/team-discord-log-bot
+
+      cat > /etc/systemd/system/team-discord-log-bot.service <<'BOT_UNIT'
+  [Unit]
+  Description=Batch jumphost SSH and configuration audit events to Discord
+  ConditionPathExists=/etc/team-discord-webhook.env
+  After=network-online.target systemd-journald.service auditd.service
+  Wants=network-online.target
+
+  [Service]
+  Type=oneshot
+  DynamicUser=yes
+  SupplementaryGroups=systemd-journal
+  StateDirectory=team-discord-log-bot
+  StateDirectoryMode=0750
+  EnvironmentFile=/etc/default/team-discord-log-bot
+  EnvironmentFile=/etc/team-discord-webhook.env
+  ExecStart=/usr/local/sbin/team-discord-log-bot
+  NoNewPrivileges=yes
+  ProtectSystem=strict
+  ProtectHome=yes
+  PrivateTmp=yes
+  ProtectKernelTunables=yes
+  ProtectKernelModules=yes
+  ProtectControlGroups=yes
+  RestrictSUIDSGID=yes
+  MemoryDenyWriteExecute=yes
+  RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+  TimeoutStartSec=55s
+  BOT_UNIT
+
+      cat > /etc/systemd/system/team-discord-log-bot.timer <<'BOT_TIMER'
+  [Unit]
+  Description=Run the jumphost Discord log forwarder every minute
+
+  [Timer]
+  OnCalendar=*-*-* *:*:00
+  Persistent=true
+  AccuracySec=10s
+  Unit=team-discord-log-bot.service
+
+  [Install]
+  WantedBy=timers.target
+  BOT_TIMER
+      systemctl daemon-reload
+      systemctl enable --now team-discord-log-bot.timer
+    fi
+  fi
+
   ${file("${path.module}/scripts/login-motd.sh")}
   EOT
   }

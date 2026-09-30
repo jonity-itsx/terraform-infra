@@ -26,6 +26,17 @@ variable "team_id" {
   type        = number
 }
 
+variable "discord_channel_id" {
+  description = "Discord channel ID where the jumphost log bot should post; empty disables notifications."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.discord_channel_id == "" || can(regex("^[0-9]{17,20}$", var.discord_channel_id))
+    error_message = "discord_channel_id must be a Discord snowflake ID (17-20 digits), or empty to disable notifications."
+  }
+}
+
 # Punkt 6 i workshopen: instruktören måste nå jumphosten på 22 från sitt nät,
 # och Headscale på 8080 från reverse proxyn. Båda är krav så fort vi stramar
 # åt något. De ligger som variabler för att vara lätta att hitta och ändra.
