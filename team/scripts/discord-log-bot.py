@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
+import datetime
 import json
 import logging
 import os
 import pwd
-import queue
 import re
 import subprocess
-import threading
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-EVENTS = queue.Queue()
 HOST = os.uname().nodename
 CHANNEL_ID = os.environ["DISCORD_CHANNEL_ID"]
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
+STATE_DIRECTORY = os.environ.get("STATE_DIRECTORY", "/var/lib/team-discord-log-bot")
+CURSOR_FILE = os.path.join(STATE_DIRECTORY, "journal.cursor")
+MAX_EVENTS = 100
+MAX_EVENT_LENGTH = 300
+MAX_MESSAGE_LENGTH = 1800
 
 SSH_RE = re.compile(
     r"^(?P<result>Accepted|Failed) (?P<method>\S+) for "
@@ -52,9 +56,9 @@ def post_to_discord(content):
             http_json(
                 webhook_url() + "?wait=true",
                 {"Content-Type": "application/json"},
-                {"content": content[:1900], "allowed_mentions": {"parse": []}},
+                {"content": content, "allowed_mentions": {"parse": []}},
             )
-            return
+            return True
         except urllib.error.HTTPError as error:
             retry_after = 1
             try:
@@ -64,49 +68,34 @@ def post_to_discord(content):
                 pass
             if error.code < 500 and error.code != 429:
                 logging.error("Discord rejected an audit notification: HTTP %s", error.code)
-                return
+                return False
             logging.warning("Discord request failed (HTTP %s), retry %s", error.code, attempt + 1)
-            time.sleep(retry_after if error.code == 429 else min(2**attempt, 15))
+            if attempt < 3:
+                time.sleep(retry_after if error.code == 429 else min(2**attempt, 15))
         except Exception as error:
             logging.warning(
                 "Could not deliver audit notification (%s), retry %s",
                 type(error).__name__, attempt + 1,
             )
-            time.sleep(min(2**attempt, 15))
-    logging.error("Dropping audit notification after retries")
+            if attempt < 3:
+                time.sleep(min(2**attempt, 15))
+    logging.error("Audit notification delivery failed; journal cursor was not advanced")
+    return False
 
 
-def ssh_reader():
-    command = [
-        "journalctl", "--follow", "--lines=0", "--no-pager", "--output=json",
-        "_COMM=sshd", "_COMM=sshd-session",
-    ]
-    while True:
-        try:
-            with subprocess.Popen(command, stdout=subprocess.PIPE, text=True) as process:
-                for line in process.stdout:
-                    try:
-                        message = json.loads(line).get("MESSAGE", "")
-                    except json.JSONDecodeError:
-                        continue
-                    match = SSH_RE.search(message)
-                    if match:
-                        result = "SUCCESS" if match["result"] == "Accepted" else "FAILED"
-                        EVENTS.put(
-                            f"SSH {result} on {HOST}: {match['user']} via {match['method']} "
-                            f"from {match['ip']}:{match['port']}"
-                        )
-                process.wait()
-        except Exception:
-            logging.exception("SSH journal reader stopped")
-        time.sleep(2)
-
-
-def audit_fields(line):
+def audit_fields(message):
     return {
         key: value[1:-1] if value.startswith('"') and value.endswith('"') else value
-        for key, value in AUDIT_FIELD_RE.findall(line)
+        for key, value in AUDIT_FIELD_RE.findall(message)
     }
+
+
+def event_time(entry):
+    try:
+        timestamp = int(entry["__REALTIME_TIMESTAMP"]) / 1_000_000
+        return datetime.datetime.fromtimestamp(timestamp).astimezone().strftime("%H:%M:%S")
+    except (KeyError, TypeError, ValueError, OSError):
+        return "unknown time"
 
 
 def audit_message(records):
@@ -125,58 +114,136 @@ def audit_message(records):
     changed = ", ".join(paths[:5]) or "protected configuration"
     if len(paths) > 5:
         changed += f" and {len(paths) - 5} more"
-    return f"CONFIG CHANGE on {HOST}: actor {actor}, process {executable}, paths: {changed}"
+    timestamp = records[0].get("journal_time", "unknown time")
+    return f"{timestamp} CONFIG CHANGE on {HOST}: actor {actor}, process {executable}, paths: {changed}"
 
 
-def audit_reader():
-    path = "/var/log/audit/audit.log"
-    current_id = None
-    records = []
-    while True:
+def collect_journal_events(cursor):
+    command = ["journalctl", "--no-pager", "--output=json", "--show-cursor"]
+    if cursor:
+        command.append(f"--after-cursor={cursor}")
+    else:
+        command.append("--since=1 minute ago")
+
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    latest_cursor = None
+    events = []
+    total_events = 0
+    audit_groups = {}
+
+    def add_event(message):
+        nonlocal total_events
+        total_events += 1
+        if len(events) < MAX_EVENTS:
+            events.append(message[:MAX_EVENT_LENGTH])
+
+    for line in process.stdout:
+        line = line.rstrip("\n")
+        if line.startswith("-- cursor:"):
+            latest_cursor = line.partition(":")[2].strip()
+            continue
         try:
-            with open(path, encoding="utf-8", errors="replace") as audit_log:
-                audit_log.seek(0, os.SEEK_END)
-                while True:
-                    line = audit_log.readline()
-                    if not line:
-                        time.sleep(0.25)
-                        continue
-                    event_match = AUDIT_ID_RE.search(line)
-                    if not event_match:
-                        continue
-                    event_id = event_match.group(1)
-                    if current_id is not None and event_id != current_id and records:
-                        message = audit_message(records)
-                        if message:
-                            EVENTS.put(message)
-                        records = []
-                    current_id = event_id
-                    record = audit_fields(line)
-                    if record.get("type") == "EOE":
-                        message = audit_message(records)
-                        if message:
-                            EVENTS.put(message)
-                        records = []
-                        current_id = None
-                    else:
-                        records.append(record)
-        except FileNotFoundError:
-            logging.warning("Waiting for auditd log at %s", path)
-            time.sleep(2)
-        except Exception:
-            logging.exception("Audit log reader stopped")
-            time.sleep(2)
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        message = entry.get("MESSAGE", "")
+        ssh_match = SSH_RE.search(message)
+        if ssh_match:
+            result = "SUCCESS" if ssh_match["result"] == "Accepted" else "FAILED"
+            add_event(
+                f"{event_time(entry)} SSH {result} on {HOST}: {ssh_match['user']} "
+                f"via {ssh_match['method']} from {ssh_match['ip']}:{ssh_match['port']}"
+            )
+
+        audit_id_match = AUDIT_ID_RE.search(message)
+        if not audit_id_match:
+            continue
+        audit_id = audit_id_match.group(1)
+        record = audit_fields(message)
+        record["journal_time"] = event_time(entry)
+        if record.get("type") == "EOE":
+            grouped_records = audit_groups.pop(audit_id, [])
+            result = audit_message(grouped_records)
+            if result:
+                add_event(result)
+        else:
+            audit_groups.setdefault(audit_id, []).append(record)
+
+    return_code = process.wait()
+    error_output = process.stderr.read()
+    if return_code:
+        raise RuntimeError(f"journalctl failed with status {return_code}: {error_output.strip()}")
+
+    for grouped_records in audit_groups.values():
+        result = audit_message(grouped_records)
+        if result:
+            add_event(result)
+
+    return latest_cursor, events, total_events
+
+
+def read_cursor():
+    try:
+        with open(CURSOR_FILE, encoding="utf-8") as cursor_file:
+            return cursor_file.read().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def save_cursor(cursor):
+    os.makedirs(STATE_DIRECTORY, mode=0o750, exist_ok=True)
+    temporary_path = f"{CURSOR_FILE}.tmp"
+    with open(temporary_path, "w", encoding="utf-8") as cursor_file:
+        cursor_file.write(cursor + "\n")
+        cursor_file.flush()
+        os.fsync(cursor_file.fileno())
+    os.replace(temporary_path, CURSOR_FILE)
+    directory_fd = os.open(STATE_DIRECTORY, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def discord_messages(events, total_events):
+    omitted = total_events - len(events)
+    summary = f"{HOST}: {total_events} log events in the last batch"
+    if omitted:
+        summary += f" ({omitted} event details omitted; batch limit {MAX_EVENTS})"
+    messages = []
+    current = summary
+    for event in events:
+        candidate = f"{current}\n{event}"
+        if len(candidate) > MAX_MESSAGE_LENGTH:
+            messages.append(current)
+            current = event
+        else:
+            current = candidate
+    if current:
+        messages.append(current)
+    return messages
 
 
 def main():
     webhook = http_json(webhook_url(), {})
     if str(webhook.get("channel_id")) != CHANNEL_ID:
         raise RuntimeError("Discord webhook channel does not match DISCORD_CHANNEL_ID")
-    threading.Thread(target=ssh_reader, daemon=True).start()
-    threading.Thread(target=audit_reader, daemon=True).start()
-    while True:
-        post_to_discord(EVENTS.get())
+
+    latest_cursor, events, total_events = collect_journal_events(read_cursor())
+    if latest_cursor is None:
+        logging.info("No journal cursor was returned; nothing to checkpoint")
+        return 0
+
+    if events:
+        for message in discord_messages(events, total_events):
+            if not post_to_discord(message):
+                return 1
+        logging.info("Sent %s events (%s details) to Discord", total_events, len(events))
+
+    save_cursor(latest_cursor)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
