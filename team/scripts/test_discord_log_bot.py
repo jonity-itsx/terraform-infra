@@ -81,6 +81,31 @@ class DiscordLogBotTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(total, 0)
 
+    def test_webhook_channel_is_checked_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                mock.patch.object(collector, "STATE_DIRECTORY", directory),
+                mock.patch.object(
+                    collector, "http_json", return_value={"channel_id": collector.CHANNEL_ID}
+                ) as http_json,
+            ):
+                collector.verify_webhook_channel()
+                collector.verify_webhook_channel()
+                self.assertEqual(http_json.call_count, 1)
+
+            stored = (Path(directory) / "webhook.verified").read_text()
+            self.assertNotIn("test-token", stored)
+
+    def test_webhook_channel_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                mock.patch.object(collector, "STATE_DIRECTORY", directory),
+                mock.patch.object(collector, "http_json", return_value={"channel_id": "1"}),
+            ):
+                with self.assertRaises(RuntimeError):
+                    collector.verify_webhook_channel()
+            self.assertFalse((Path(directory) / "webhook.verified").exists())
+
     def test_cursor_is_saved_after_successful_delivery(self):
         with tempfile.TemporaryDirectory() as directory:
             cursor_path = Path(directory) / "journal.cursor"

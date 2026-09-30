@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import hashlib
 import json
 import logging
 import os
@@ -225,10 +226,27 @@ def discord_messages(events, total_events):
     return messages
 
 
-def main():
+def verify_webhook_channel():
+    # Checked once per webhook URL and channel, not every minute. Only a hash
+    # of the URL is stored, never the URL itself.
+    verified_path = os.path.join(STATE_DIRECTORY, "webhook.verified")
+    fingerprint = hashlib.sha256(f"{WEBHOOK_URL}\n{CHANNEL_ID}".encode()).hexdigest()
+    try:
+        with open(verified_path, encoding="utf-8") as verified_file:
+            if verified_file.read().strip() == fingerprint:
+                return
+    except FileNotFoundError:
+        pass
     webhook = http_json(webhook_url(), {})
     if str(webhook.get("channel_id")) != CHANNEL_ID:
         raise RuntimeError("Discord webhook channel does not match DISCORD_CHANNEL_ID")
+    os.makedirs(STATE_DIRECTORY, mode=0o750, exist_ok=True)
+    with open(verified_path, "w", encoding="utf-8") as verified_file:
+        verified_file.write(fingerprint + "\n")
+
+
+def main():
+    verify_webhook_channel()
 
     latest_cursor, events, total_events = collect_journal_events(read_cursor())
     if latest_cursor is None:
