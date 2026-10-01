@@ -91,6 +91,20 @@ def audit_fields(message):
     }
 
 
+def message_text(entry):
+    # journald ger MESSAGE som en lista med bytes när meddelandet innehåller
+    # kontrolltecken eller ogiltig UTF-8 (till exempel curls förloppsmätare i
+    # google_hostname.sh vid varje uppstart), och som null när fältet är för
+    # stort. En enda sådan post fick hela boten att krascha på samma cursor
+    # varje minut, så att inga larm skickades.
+    message = entry.get("MESSAGE")
+    if isinstance(message, list):
+        return bytes(b & 0xFF for b in message).decode("utf-8", "replace")
+    if isinstance(message, str):
+        return message
+    return ""
+
+
 def event_time(entry):
     try:
         timestamp = int(entry["__REALTIME_TIMESTAMP"]) / 1_000_000
@@ -148,7 +162,7 @@ def collect_journal_events(cursor):
         except json.JSONDecodeError:
             continue
 
-        message = entry.get("MESSAGE", "")
+        message = message_text(entry)
         ssh_match = SSH_RE.search(message)
         if ssh_match:
             result = "SUCCESS" if ssh_match["result"] == "Accepted" else "FAILED"
