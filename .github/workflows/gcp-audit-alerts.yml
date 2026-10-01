@@ -1,0 +1,66 @@
+name: GCP Audit Alerts
+
+# Larmar i Discord när någon utanför teamet ändrar team 4:s resurser.
+# Logiken och begränsningarna står i .github/scripts/gcp-audit-alerts.sh.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      heartbeat:
+        description: "Skicka ett livstecken till Discord även om inget hittas"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write     # OIDC för Workload Identity
+  actions: read       # förra lyckade körningens starttid
+
+concurrency:
+  group: gcp-audit-alerts
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Check audit log
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Läskontot (roles/viewer), inte editor-kontot.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CICD_PLAN_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Check audit log and alert
+        env:
+          PROJECT_ID: itsx25-lab
+          TEAM: team4
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_GCP_AUDIT_WEBHOOK }}
+          DISCORD_CHANNEL_ID: ${{ vars.GCP_AUDIT_CHANNEL_ID }}
+          GH_TOKEN: ${{ github.token }}
+          FORCE_HEARTBEAT: ${{ inputs.heartbeat || 'false' }}
+        run: bash .github/scripts/gcp-audit-alerts.sh
+
+      # Ett larm som tystnar ska märkas (F54).
+      - name: Report failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_GCP_AUDIT_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [[ -n "$DISCORD_WEBHOOK_URL" ]] || exit 0
+          body=$(jq -n --arg c ":warning: GCP-auditlarmet för team4 fallerade: $RUN_URL" \
+            '{content: $c, allowed_mentions: {parse: []}}')
+          curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' \
+            -H 'User-Agent: team4-gcp-audit-alerts (github-actions)' \
+            --data "$body" -K - <<<"url = \"${DISCORD_WEBHOOK_URL}\""
