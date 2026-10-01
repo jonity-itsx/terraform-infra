@@ -1,0 +1,10 @@
+# Konton vars ändringar av team 4:s resurser INTE larmar. Ett konto per rad.
+# Allt annat larmar, även instruktören, eftersom det är bra att veta om.
+jon.eskilsson@chasacademy.se
+jon.jonsson@chasacademy.se
+jonas.beijbom@chasacademy.se
+liam.baltze@chasacademy.se
+wilma.kylvag@chasacademy.se
+team4-cicd@itsx25-lab.iam.gserviceaccount.com
+# Googles schemaläggning startar och stoppar VM:arna varje dag.
+service-974448703406@compute-system.iam.gserviceaccount.com
