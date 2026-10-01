@@ -69,6 +69,29 @@ class DiscordLogBotTests(unittest.TestCase):
         self.assertTrue(any("SSH SUCCESS" in event for event in events))
         self.assertTrue(any("/etc/ssh/sshd_config" in event for event in events))
 
+    def test_binary_and_null_messages_do_not_stop_collection(self):
+        # journald skriver MESSAGE som en bytelista vid kontrolltecken och som
+        # null vid för stora fält. Inloggningen efteråt ska ändå rapporteras.
+        entries = [
+            {"MESSAGE": list(b"\r  % Total    % Received\r100 24750"), "__REALTIME_TIMESTAMP": "1760000000000000"},
+            {"MESSAGE": None, "__REALTIME_TIMESTAMP": "1760000000000000"},
+            {
+                "MESSAGE": "Accepted publickey for liam from 203.0.113.5 port 22 ssh2",
+                "__REALTIME_TIMESTAMP": "1760000001000000",
+            },
+        ]
+        lines = [json.dumps(entry) for entry in entries]
+        lines.append("-- cursor: cursor-44")
+
+        with mock.patch.object(
+            collector.subprocess, "Popen", return_value=FakeJournalctl(lines)
+        ):
+            cursor, events, total = collector.collect_journal_events("cursor-43")
+
+        self.assertEqual(cursor, "cursor-44")
+        self.assertEqual(total, 1)
+        self.assertIn("SSH SUCCESS", events[0])
+
     def test_uses_saved_cursor_for_next_read(self):
         lines = ["-- cursor: cursor-43"]
         with mock.patch.object(
