@@ -46,7 +46,7 @@ jobs:
           PROJECT_ID: itsx25-lab
           TEAM: team4
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_GCP_AUDIT_WEBHOOK }}
-          DISCORD_CHANNEL_ID: ${{ vars.DISCORD_GCP_AUDIT_CHANNEL_ID }}
+          DISCORD_CHANNEL_ID: ${{ vars.GCP_AUDIT_CHANNEL_ID }}
           GH_TOKEN: ${{ github.token }}
           FORCE_HEARTBEAT: ${{ inputs.heartbeat || 'false' }}
         run: bash .github/scripts/gcp-audit-alerts.sh
