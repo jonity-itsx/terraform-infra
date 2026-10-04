@@ -95,7 +95,10 @@ resource "google_compute_instance" "jumphost" {
   zone         = local.jumphost_zone
 
   allow_stopping_for_update = true
-  can_ip_forward            = true
+  # Avsiktligt: jumphosten är NAT för primary och subnet router i tailnetet.
+  # Undantaget gäller bara den här raden, inte primary.
+  #trivy:ignore:GCP-0043
+  can_ip_forward = true
 
   tags = ["jumphost"]
 
@@ -116,6 +119,9 @@ resource "google_compute_instance" "jumphost" {
   network_interface {
     subnetwork = google_compute_subnetwork.team.id
     network_ip = cidrhost(local.subnet_cidr, 2)
+    # Avsiktligt: publik IP för NAT åt primary och för instruktörens proxy
+    # till Headscale. Brandväggen begränsar vem som når den.
+    #trivy:ignore:GCP-0031
     access_config {
       nat_ip = google_compute_address.jumphost.address
     }
