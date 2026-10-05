@@ -28,7 +28,7 @@ SSH_RE = re.compile(
     r"(?:(?:invalid user) )?(?P<user>\S+) from (?P<ip>\S+) port (?P<port>\d+)"
 )
 AUDIT_ID_RE = re.compile(r"msg=audit\([^:]+:(\d+)\)")
-AUDIT_FIELD_RE = re.compile(r'(\w+)=((?:"(?:\\.|[^"])*")|[^\s]+)')
+AUDIT_FIELD_RE = re.compile(r'(\w+)=((?:"(?:\\.|[^"\\])*")|[^\s]+)')
 
 
 def http_json(url, headers, body=None):
