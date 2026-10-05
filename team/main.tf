@@ -16,6 +16,7 @@ provider "google" {
   region  = var.region
 }
 
+#
 locals {
   team_zone     = (var.team_id - 1) % 3
   jumphost_zone = coalesce(var.jumphost_zone, data.google_compute_zones.available.names[local.team_zone])
