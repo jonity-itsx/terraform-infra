@@ -71,6 +71,51 @@ jobs:
         run: tflint --format compact
         working-directory: team/bootstrap
 
+  # Säkerhetsskanning av Terraform-koden. Trivy hämtas som binär med fast
+  # version och kontrollerad checksumma, samma som i company-website.
+  # Avsiktliga undantag står som #trivy:ignore direkt i koden, med motivering.
+  # Skannar från roten, så att sökvägarna i SARIF blir team/main.tf osv.
+  trivy-config:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: 0.74.0
+          TRIVY_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+        run: |
+          set -euo pipefail
+          curl -fsSLo "$RUNNER_TEMP/trivy.tar.gz" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/trivy.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP/bin" trivy
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Alla nivåer till Security-fliken, så att MEDIUM och LOW syns utan
+      # att stoppa PR:en.
+      - name: Trivy report
+        run: trivy config --format sarif --output trivy-config.sarif .
+
+      - name: Upload results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
+
+      # Spärren: CRITICAL och HIGH stoppar PR:en.
+      - name: Trivy gate
+        run: trivy config --severity CRITICAL,HIGH --exit-code 1 .
+
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
